@@ -1,8 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from .terrain import generate_reference_and_limits
+from .control import Controller
 
 class Submarine:
     def __init__(self):
@@ -75,12 +77,28 @@ class Mission:
 
     @classmethod
     def from_csv(cls, file_name: str):
-        # You are required to implement this method
-        pass
+        """Create a Mission instance from a CSV file.
+        
+        Args:
+            file_name (str): Path to the CSV file containing mission data
+            
+        Returns:
+            Mission: A new Mission instance with data loaded from the CSV file
+        """
+        # Read the CSV file into a pandas DataFrame
+        df = pd.read_csv(file_name)
+        
+        # Convert DataFrame columns to numpy arrays
+        reference = df['reference'].to_numpy()
+        cave_height = df['cave_height'].to_numpy()
+        cave_depth = df['cave_depth'].to_numpy()
+        
+        # Create and return a new Mission instance
+        return cls(reference, cave_height, cave_depth)
 
 
 class ClosedLoop:
-    def __init__(self, plant: Submarine, controller):
+    def __init__(self, plant: Submarine, controller: Controller):
         self.plant = plant
         self.controller = controller
 
@@ -94,10 +112,14 @@ class ClosedLoop:
         actions = np.zeros(T)
         self.plant.reset_state()
 
+        # Reset controller state at start of simulation
+        self.controller.reset()
+        
         for t in range(T):
             positions[t] = self.plant.get_position()
             observation_t = self.plant.get_depth()
-            # Call your controller here
+            # Compute control action using PD controller
+            actions[t] = self.controller.compute_action(mission.reference[t], observation_t)
             self.plant.transition(actions[t], disturbances[t])
 
         return Trajectory(positions)
